@@ -1,29 +1,26 @@
-PROJ = example
-PIN_DEF = ice40hx8k-evb.pcf
-DEVICE = hx8k
+SHELL = /bin/sh
+FPGA_PKG = ct256
+FPGA_TYPE = hx8k
+PCF = ice40hx8k-evb.pcf
+ADD_SRC = example.v
 
-all: $(PROJ).rpt $(PROJ).bin
+example: example.rpt example.bin
 
-%.blif: %.v
-	yosys -p 'synth_ice40 -top top -blif $@' $<
+%.json: %.v
+	yosys -ql $(subst .json,,$@)-yosys.log -p 'synth_ice40 -top top -json $@' $<
 
-%.asc: $(PIN_DEF) %.blif
-	arachne-pnr -d $(subst hx,,$(subst lp,,$(DEVICE))) -o $@ -p $^ -P ct256
+%.asc: %.json
+	nextpnr-ice40 --${FPGA_TYPE} --package ${FPGA_PKG} --json $< --pcf ${PCF} --asc $@
+
+%.rpt: %.asc
+	icetime -d ${FPGA_TYPE} -mtr $@ $<
 
 %.bin: %.asc
 	icepack $< $@
 
-%.rpt: %.asc
-	icetime -d $(DEVICE) -mtr $@ $<
-
-prog: $(PROJ).bin
-	sudo iceprogduino $<
-
-sudo-prog: $(PROJ).bin
-	@echo 'Executing prog as root!!!'
-	sudo iceprogduino $<
-
 clean:
-	rm -f $(PROJ).blif $(PROJ).asc $(PROJ).bin $(PROJ).rpt
+	rm -f top*.json top*.asc top*.rpt top*.bin top*yosys.log
 
-.PHONY: all prog clean
+all: example
+
+.PHONY: all clean
